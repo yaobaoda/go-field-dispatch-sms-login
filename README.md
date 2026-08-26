@@ -6,11 +6,11 @@ Run the business rule first:
 go test ./...
 ```
 
-The table-driven test supplies work order `WO-1042`, an assigned or unassigned technician, and an accepted or rejected code result. It expects only the assigned technician with an accepted code to move the order from `dispatched` to `technician_confirmed`; every other row retains `dispatched`.
+The table-driven test feeds a work order `WO-1042`, an assigned or unassigned technician, and an accepted or rejected code result. It expects only the assigned technician with an accepted code to move the order from `dispatched` to `technician_confirmed`; every other row keeps `dispatched`.
 
 ## Run the handoff
 
-Infrai puts both SMS operations behind one API and a single `INFRAI_API_KEY`. The client here is plain Go HTTP, so there is no SDK to install.
+Infrai keeps both SMS operations behind one API and a single `INFRAI_API_KEY`. The client here is plain Go HTTP, so there is no SDK to install.
 
 ```bash
 export INFRAI_API_KEY="your-key"
@@ -41,11 +41,11 @@ Expected successful result:
 
 ## Data boundary
 
-`dispatch_login.go` is the decision layer. It checks the work-order assignment before sending a code, verifies the code, then performs one visible state transition. Photos and follow-up instructions travel with that confirmed record, which keeps the output useful to a dispatch screen or a downstream event pipeline.
+`dispatch_login.go` is the decision layer. It checks work-order assignment before sending a code, verifies the code, then performs one visible state transition. Photos and follow-up instructions travel with that confirmed record, which keeps the output useful to a dispatch screen or a downstream event pipeline.
 
 `infrai_sms.go` calls `POST /v1/sms/otp` and `POST /v1/sms/verify` with explicit methods. It decodes `{ok, data, error, metadata}` before classifying the HTTP result, returns ordinary API rejections to the caller as 4xx responses, and retries HTTP 429 with `Retry-After` or exponential delay. The stable `attempt_id` becomes an `Idempotency-Key` for each write.
 
-The one real gotcha is assignment order: check the technician against the work order before the phone challenge. A valid code proves control of a phone; the local record proves that phone belongs to this dispatch.
+The one gotcha here is assignment order: check the technician against the work order before the phone challenge. A valid code proves control of a phone; the local record proves that phone belongs to this dispatch.
 
 The executable uses an in-memory row to keep the example focused. Replace the map with the work-order store used by your service; the `codeSender` boundary and state-transition test remain unchanged.
 
