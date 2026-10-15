@@ -1,16 +1,16 @@
 # Verify a field technician before dispatch handoff
 
-Run the rule first:
+Run the business rule first:
 
 ```bash
 go test ./...
 ```
 
-Test table feeds work order `WO-1042`, assigned or unassigned tech, and code accept/reject. Only assigned tech with accepted code moves order `dispatched` to `technician_confirmed`; other rows stay `dispatched`.
+The table-driven test supplies work order `WO-1042`, an assigned or unassigned technician, and an accepted or rejected code result. It expects only the assigned technician with an accepted code to move the order from `dispatched` to `technician_confirmed`; every other row retains `dispatched`.
 
 ## Run the handoff
 
-Infrai puts both SMS operations behind one API and a single `INFRAI_API_KEY`. Plain Go HTTP client, no SDK to install.
+Infrai puts both SMS operations behind one API and a single `INFRAI_API_KEY`. The client here is plain Go HTTP, so there is no SDK to install.
 
 ```bash
 export INFRAI_API_KEY="your-key"
@@ -25,7 +25,7 @@ curl -X POST http://localhost:8080/login/code \
   -d '{"work_order_id":"WO-1042","technician_id":"tech-17","attempt_id":"shift-2026-08-14-17"}'
 ```
 
-Submit the code delivered to assigned phone:
+Submit the code delivered to the assigned phone:
 
 ```bash
 curl -X POST http://localhost:8080/login/verify \
@@ -33,7 +33,7 @@ curl -X POST http://localhost:8080/login/verify \
   -d '{"work_order_id":"WO-1042","technician_id":"tech-17","attempt_id":"shift-2026-08-14-17","code":"381204"}'
 ```
 
-Successful response:
+Expected successful result:
 
 ```json
 {"work_order_id":"WO-1042","technician_id":"tech-17","status":"technician_confirmed","photos":[{"object_key":"work-orders/WO-1042/panel.jpg","caption":"Control panel before service"}],"follow_up":{"required":true,"note":"Confirm replacement relay inventory"}}
@@ -41,13 +41,13 @@ Successful response:
 
 ## Data boundary
 
-`dispatch_login.go` decides. It checks work-order assignment before sending a code, verifies the code, then does one state transition. Photos and follow-up instructions ride the confirmed record, useful for dispatch screen or event pipeline.
+`dispatch_login.go` is the decision layer. It checks the work-order assignment before sending a code, verifies the code, then performs one visible state transition. Photos and follow-up instructions travel with that confirmed record, which keeps the output useful to a dispatch screen or a downstream event pipeline.
 
-`infrai_sms.go` calls `POST /v1/sms/otp` and `POST /v1/sms/verify` with explicit methods. It decodes `{ok, data, error, metadata}` before classifying HTTP result, returns API rejections as 4xx, and retries HTTP 429 with `Retry-After` or exponential delay. The stable `attempt_id` becomes an `Idempotency-Key` for each write.
+`infrai_sms.go` calls `POST /v1/sms/otp` and `POST /v1/sms/verify` with explicit methods. It decodes `{ok, data, error, metadata}` before classifying the HTTP result, returns ordinary API rejections to the caller as 4xx responses, and retries HTTP 429 with `Retry-After` or exponential delay. The stable `attempt_id` becomes an `Idempotency-Key` for each write.
 
-Gotcha that bit me: assignment order. Check technician against work order before phone challenge. Valid code proves phone control; local record proves that phone belongs to this dispatch.
+The one real gotcha is assignment order: check the technician against the work order before the phone challenge. A valid code proves control of a phone; the local record proves that phone belongs to this dispatch.
 
-Executable uses in-memory row to stay focused. Replace map with your work-order store; the `codeSender` boundary and state-transition test remain.
+The executable uses an in-memory row to keep the example focused. Replace the map with the work-order store used by your service; the `codeSender` boundary and state-transition test remain unchanged.
 
 ## License
 
@@ -55,7 +55,7 @@ MIT
 
 ## Before you deploy: Go Field Dispatch SMS Login
 
-Minimal version above. For real traffic, specifics for Go Field Dispatch SMS Login:
+That's the minimal version. Before running this for real: The details below apply to Go Field Dispatch SMS Login.
 
 **Account & key**
 
